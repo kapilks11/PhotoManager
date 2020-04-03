@@ -3,23 +3,7 @@ import errno
 import sqlite3
 import os
 import hashlib
-import exifread
 from shutil import copyfile
-# from PIL import Image
-# from PIL.ExifTags import TAGS
-# from PIL import Image
-
-# return the date and time of the image taken
-
-
-def get_exif(fn):
-    # Open image file for reading (binary mode)
-    f = open(fn, 'rb')
-    # Return Exif tags
-    tags = exifread.process_file(f)
-    for tag in tags.keys():
-        if tag in ('EXIF DateTimeOriginal'):
-            return (tags[tag])
 
 
 # return the SHA-1 hash of the file
@@ -46,22 +30,15 @@ def hash_file(filename):
 
 def WriteFilebyPath(root, name):
     fpath = os.path.join(root, name)
-    dtime = get_exif(fpath)
-    if dtime is not None:
-        year = str(dtime)[0:4]
-        month = str(dtime)[5:7]
-        #       print(str(dtime))
-        #       print(str(year)+' ' + str(month))
-        path = 'import/'+year+'/'+month
-        try:
-            os.makedirs(path)
-        except OSError as exc:
-            if exc.errno != errno.EEXIST:
-                raise
-            pass
-    else:
-        #       print('Invalid Exif data')
-        path = 'import/misc'
+    fname, fext = os.path.splitext(name)
+    ftype = fext[1:]
+    path = 'Files/'+ftype.lower()
+    try:
+        os.makedirs(path)
+    except OSError as exc:
+        if exc.errno != errno.EEXIST:
+            raise
+        pass
     CopyCount = 0
     FileWritten = False
     while not FileWritten:
@@ -70,8 +47,10 @@ def WriteFilebyPath(root, name):
         if exists:
             CopyCount = CopyCount + 1
             copyname, copyext = os.path.splitext(name)
-            name = fname +'_pmcopy_'+str(CopyCount)+copyext
+            name = fname+'_pmcopy_'+str(CopyCount)+copyext
+            # print(name)
         else:
+            # print(dstfpath)
             copyfile(fpath, dstfpath)
             FileWritten = True
 
@@ -81,13 +60,13 @@ def WriteFilebyPath(root, name):
 folder2scan = input(' Please Enter the folder name to scan : ')
 print(folder2scan)
 try:
-    os.makedirs('import/misc')
+    os.makedirs('Files')
 except OSError as exc:
     if exc.errno != errno.EEXIST:
         raise
     pass
     print('import folder already exists')
-con = sqlite3.connect('import/image.db')
+con = sqlite3.connect('Files/storage.db')
 cursorObj = con.cursor()
 # cursorObj.execute("DROP TABLE images")
 cursorObj.execute("CREATE TABLE IF NOT EXISTS images(sha1 text PRIMARY KEY,\
@@ -103,7 +82,11 @@ for root, dirs, files in os.walk(folder2scan, topdown=False):
         fpath = os.path.join(root, name)
         # check file extension
         filename, file_extension = os.path.splitext(name)
-        if file_extension.lower() in ('.jpg', '.jpeg', '.heic'):
+        if file_extension.lower() in ('.pdf', '.zip', '.rar', '.gz', '.7z',
+                                      '.doc', '.docx', '.ppt', '.pptx',
+                                      'xls', '.xlsx', '.kdbx', '.key',
+                                      '.txt', '.epub', '.mobi', '.py','.dat',
+                                      '.iso', '.tar'):
             # check yyfile already avaliable
             print('Processing ' + fpath)
             image_SHA1 = str(hash_file(fpath))
@@ -121,6 +104,9 @@ for root, dirs, files in os.walk(folder2scan, topdown=False):
                 # write file in destination folder
                 WriteFilebyPath(root, name)
                 con.commit()
+            else:
+                os.remove(fpath)
+                pass
 
 count = count + 1
 con.commit()
